@@ -55,23 +55,41 @@ jobs:
             | tee build/xcodebuild.log | tail -n 200 || true
           test -d build/Trio.xcarchive/Products/Applications/Trio.app
 
-      - name: Package Trio.ipa (app only, no Watch or extensions)
+      - name: Package IPAs (with Live Activity, and app only)
         run: |
+          APP=Payload/Trio.app
           mkdir -p Payload
           cp -R build/Trio.xcarchive/Products/Applications/Trio.app Payload/
-          # The FlareStore profile covers one App ID only, so extensions cannot be signed with it.
-          rm -rf Payload/Trio.app/Watch Payload/Trio.app/PlugIns
-          APP=Payload/Trio.app
+          # Apple Watch app is not included (the profile covers a single App ID).
+          rm -rf "$APP/Watch"
+
           ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist")
           GROUP=$(/usr/libexec/PlistBuddy -c "Print :AppGroupID" "$APP/Info.plist")
           echo "Bundle ID : $ID"
           echo "App group : $GROUP"
           test "$ID" = "$SIGN_BUNDLE_ID"
           test "$GROUP" = "$SIGN_APP_GROUP"
-          zip -qry Trio.ipa Payload
-          ls -lh Trio.ipa
 
-      - name: Upload IPA
+          echo "Extensions kept in the Live Activity build:"
+          ls "$APP/PlugIns" || true
+          for X in "$APP"/PlugIns/*.appex; do
+            echo " - $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$X/Info.plist")"
+          done
+
+          # 1) Full build: main app + Live Activity extension
+          zip -qry Trio-LiveActivity.ipa Payload
+          # 2) Fallback: main app only
+          rm -rf "$APP/PlugIns"
+          zip -qry Trio.ipa Payload
+          ls -lh Trio-LiveActivity.ipa Trio.ipa
+
+      - name: Upload IPA (with Live Activity)
+        uses: actions/upload-artifact@v6
+        with:
+          name: Trio-with-liveactivity-ipa
+          path: Trio-LiveActivity.ipa
+
+      - name: Upload IPA (app only)
         uses: actions/upload-artifact@v6
         with:
           name: Trio-unsigned-ipa
