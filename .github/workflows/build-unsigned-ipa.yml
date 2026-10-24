@@ -1,0 +1,55 @@
+name: Build Trio (unsigned IPA)
+run-name: Build unsigned Trio IPA (${{ github.ref_name }})
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build unsigned IPA
+    runs-on: macos-26
+    steps:
+      - name: Select Xcode version
+        run: sudo xcode-select --switch /Applications/Xcode_26.5.app/Contents/Developer
+
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Archive without code signing
+        run: |
+          set -o pipefail
+          mkdir -p build
+          xcodebuild archive \
+            -workspace Trio.xcworkspace \
+            -scheme Trio \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/Trio.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            | tee build/xcodebuild.log | tail -n 200 || true
+          test -d build/Trio.xcarchive/Products/Applications/Trio.app
+
+      - name: Package Trio.ipa
+        run: |
+          mkdir -p Payload
+          cp -R build/Trio.xcarchive/Products/Applications/Trio.app Payload/
+          zip -qry Trio.ipa Payload
+          ls -lh Trio.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v6
+        with:
+          name: Trio-unsigned-ipa
+          path: Trio.ipa
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: build-log
+          path: build/xcodebuild.log
