@@ -3,6 +3,10 @@ run-name: Build unsigned Trio IPA (${{ github.ref_name }})
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/build-unsigned-ipa.yml
 
 env:
   # Identifiers taken from the FlareStore provisioning profile.
